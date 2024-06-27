@@ -1,5 +1,7 @@
 from pynput import keyboard
 from colorama import init, Fore, Style
+import threading
+import time
 
 # Инициализируем colorama
 init()
@@ -25,20 +27,32 @@ controller = keyboard.Controller()
 # Флаг для паузы
 paused = False
 
+# Буфер для накопления заменяемых символов
+buffer = []
+
+# Функция для вставки символов из буфера
+def insert_from_buffer():
+    global buffer
+    for char in buffer:
+        controller.type(char)
+    buffer = []
+
 # Функция для перехвата нажатий клавиш
 def on_press(key):
-    global paused
+    global paused, buffer
     if not paused:
         try:
             if hasattr(key, 'char') and key.char:
                 char = key.char
                 if char in replacement_dict:
                     new_char = replacement_dict[char]
-                    # Удаляем оригинальный символ
+                    # Добавляем замененный символ в буфер
+                    buffer.append(new_char)
+                    # Очищаем оригинальный символ
                     controller.press(keyboard.Key.backspace)
                     controller.release(keyboard.Key.backspace)
-                    # Вставляем замененный символ
-                    controller.type(new_char)
+                    # Вставляем замененный символ с небольшой задержкой
+                    threading.Timer(0.1, insert_from_buffer).start()
         except AttributeError:
             pass
 
@@ -56,6 +70,13 @@ def on_release(key):
         else:
             print(Fore.GREEN + "Возобновлено" + Style.RESET_ALL)
 
-# Запускаем перехватчик клавиш
-with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-    listener.join()
+# Создаем объект слушателя клавиш
+listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+
+# Создаем и запускаем поток для слушателя клавиш
+listener_thread = threading.Thread(target=listener.start)
+listener_thread.start()
+
+# Основной цикл программы
+while True:
+    time.sleep(1)  # Просто ожидаем, пока не будет нажата F7 для завершения программы
